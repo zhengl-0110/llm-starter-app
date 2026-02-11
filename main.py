@@ -1,15 +1,23 @@
 import os
 from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI 
 
-# 这行代码会自动寻找并加载 .env 文件中的变量
+# 关键修复1：调用 load_dotenv() 加载 .env 文件中的环境变量
 load_dotenv()
 
-# 安全读取，如果没读到会返回 None，而不是报错（后续我们会学怎么处理 None）
-api_key = os.getenv("OPENAI_API_KEY")
+# 获取 API Key 并校验
+api_key = os.getenv("DOUBAO_API_KEY", "")
+if not api_key:
+    raise ValueError("未配置 DOUBAO_API_KEY 环境变量，请检查 .env 文件或系统环境变量")
 
-if api_key:
-    print("✅ 成功读取 API Key (安全模式)")
-    # 这里只是演示，实际不要打印 key 的内容！
-    print(f"Key 的前几位: {api_key[:5]}...")
-else:
-    print("❌ 未找到 API Key，请检查 .env 文件")
+# 初始化大模型
+llm = ChatOpenAI(
+    temperature=0.5,
+    base_url="https://ark.cn-beijing.volces.com/api/v3",
+    api_key=api_key,
+    model="doubao-seed-1-6-251015",
+)
+
+# 调用模型并获取响应
+response = llm.invoke("你好")
+print(response.content)

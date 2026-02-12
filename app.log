@@ -1,0 +1,129 @@
+2026-02-12 19:49:31,682 - INFO - 🚀 程序启动，准备分析文件: ./data/deepseek-v3-1-4.pdf
+2026-02-12 19:49:31,683 - INFO - 正在加载文档: ./data/deepseek-v3-1-4.pdf
+2026-02-12 19:49:31,947 - INFO - 文档切分完成，共 6 个切片
+2026-02-12 19:49:34,765 - INFO - Loading faiss with AVX2 support.
+2026-02-12 19:49:34,839 - INFO - Successfully loaded faiss with AVX2 support.
+2026-02-12 19:49:34,849 - INFO - ✅ 向量数据库构建完成。
+2026-02-12 19:49:34,850 - INFO - ❓ 用户提问: DeepSeek 有什么特点
+2026-02-12 19:49:34,850 - INFO - 正在调用大模型 API...
+2026-02-12 19:49:56,188 - INFO - HTTP Request: POST https://ark.cn-beijing.volces.com/api/v3/chat/completions "HTTP/1.1 200 OK"
+2026-02-12 19:49:56,201 - INFO - ✅ 任务成功完成
+2026-02-12 19:52:10,773 - INFO - 🚀 程序启动，准备分析文件: ./data/deepseek-v3-1-4.pdf
+2026-02-12 19:52:10,775 - INFO - 正在加载文档: ./data/deepseek-v3-1-4.pdf
+2026-02-12 19:52:10,923 - INFO - 文档切分完成，共 6 个切片
+2026-02-12 19:52:13,032 - ERROR - ('Connection aborted.', ConnectionAbortedError(10053, '你的主机中的软件中止了一个已建立的连接。', None, 10053, None))
+2026-02-12 19:52:13,033 - ERROR - 💥 程序发生致命错误
+Traceback (most recent call last):
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\urllib3\connectionpool.py", line 773, in urlopen
+    self._prepare_proxy(conn)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\urllib3\connectionpool.py", line 1042, in _prepare_proxy
+    conn.connect()
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\urllib3\connection.py", line 796, in connect
+    sock_and_verified = _ssl_wrap_socket_and_match_hostname(
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\urllib3\connection.py", line 975, in _ssl_wrap_socket_and_match_hostname
+    ssl_sock = ssl_wrap_socket(
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\urllib3\util\ssl_.py", line 483, in ssl_wrap_socket
+    ssl_sock = _ssl_wrap_socket_impl(sock, context, tls_in_tls, server_hostname)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\urllib3\util\ssl_.py", line 527, in _ssl_wrap_socket_impl
+    return ssl_context.wrap_socket(sock, server_hostname=server_hostname)
+  File "D:\anconda3\envs\llm-starter\lib\ssl.py", line 513, in wrap_socket
+    return self.sslsocket_class._create(
+  File "D:\anconda3\envs\llm-starter\lib\ssl.py", line 1104, in _create
+    self.do_handshake()
+  File "D:\anconda3\envs\llm-starter\lib\ssl.py", line 1375, in do_handshake
+    self._sslobj.do_handshake()
+ConnectionAbortedError: [WinError 10053] 你的主机中的软件中止了一个已建立的连接。
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\requests\adapters.py", line 644, in send
+    resp = conn.urlopen(
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\urllib3\util\retry.py", line 490, in increment
+    raise reraise(type(error), error, _stacktrace)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\urllib3\util\util.py", line 38, in reraise
+    raise value.with_traceback(tb)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\urllib3\connectionpool.py", line 773, in urlopen
+    self._prepare_proxy(conn)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\urllib3\connectionpool.py", line 1042, in _prepare_proxy
+    conn.connect()
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\urllib3\connection.py", line 796, in connect
+    sock_and_verified = _ssl_wrap_socket_and_match_hostname(
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\urllib3\connection.py", line 975, in _ssl_wrap_socket_and_match_hostname
+    ssl_sock = ssl_wrap_socket(
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\urllib3\util\ssl_.py", line 483, in ssl_wrap_socket
+    ssl_sock = _ssl_wrap_socket_impl(sock, context, tls_in_tls, server_hostname)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\urllib3\util\ssl_.py", line 527, in _ssl_wrap_socket_impl
+    return ssl_context.wrap_socket(sock, server_hostname=server_hostname)
+  File "D:\anconda3\envs\llm-starter\lib\ssl.py", line 513, in wrap_socket
+    return self.sslsocket_class._create(
+  File "D:\anconda3\envs\llm-starter\lib\ssl.py", line 1104, in _create
+    self.do_handshake()
+  File "D:\anconda3\envs\llm-starter\lib\ssl.py", line 1375, in do_handshake
+    self._sslobj.do_handshake()
+urllib3.exceptions.ProtocolError: ('Connection aborted.', ConnectionAbortedError(10053, '你的主机中的软件中止了一个已建立的连接。', None, 10053, None))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\vs_code\llm-starter\main.py", line 37, in main
+    db = build_vector_store(docs)
+  File "D:\vs_code\llm-starter\core.py", line 57, in build_vector_store
+    db = FAISS.from_documents(documents, embeddings)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\langchain_core\vectorstores\base.py", line 814, in from_documents
+    return cls.from_texts(texts, embedding, metadatas=metadatas, **kwargs)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\langchain_community\vectorstores\faiss.py", line 1043, in from_texts
+    embeddings = embedding.embed_documents(texts)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\langchain_community\embeddings\dashscope.py", line 155, in embed_documents
+    embeddings = embed_with_retry(
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\langchain_community\embeddings\dashscope.py", line 83, in embed_with_retry
+    return _embed_with_retry(**kwargs)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\tenacity\__init__.py", line 331, in wrapped_f
+    return copy(f, *args, **kw)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\tenacity\__init__.py", line 470, in __call__
+    do = self.iter(retry_state=retry_state)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\tenacity\__init__.py", line 371, in iter
+    result = action(retry_state)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\tenacity\__init__.py", line 393, in <lambda>
+    self._add_action_func(lambda rs: rs.outcome.result())
+  File "D:\anconda3\envs\llm-starter\lib\concurrent\futures\_base.py", line 451, in result
+    return self.__get_result()
+  File "D:\anconda3\envs\llm-starter\lib\concurrent\futures\_base.py", line 403, in __get_result
+    raise self._exception
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\tenacity\__init__.py", line 473, in __call__
+    result = fn(*args, **kwargs)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\langchain_community\embeddings\dashscope.py", line 66, in _embed_with_retry
+    resp = embeddings.client.call(**kwargs)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\dashscope\embeddings\text_embedding.py", line 52, in call
+    return super().call(
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\dashscope\client\base_api.py", line 515, in call
+    return request.call()
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\dashscope\api_entities\http_request.py", line 143, in call
+    output = next(response)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\dashscope\api_entities\http_request.py", line 501, in _handle_request
+    raise e
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\dashscope\api_entities\http_request.py", line 475, in _handle_request
+    response = session.post(
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\requests\adapters.py", line 659, in send
+    raise ConnectionError(err, request=request)
+requests.exceptions.ConnectionError: ('Connection aborted.', ConnectionAbortedError(10053, '你的主机中的软件中止了一个已建立的连接。', None, 10053, None))
+2026-02-12 19:53:19,667 - INFO - 🚀 程序启动，准备分析文件: ./data/deepseek-v3-1-4.pdf
+2026-02-12 19:53:19,669 - ERROR - ❌ 文件不存在: ./data/deepseek-v3-1-4.pdf
+2026-02-12 19:53:57,223 - INFO - 🚀 程序启动，准备分析文件: ./data/deepseek-v3-1-4.pdf
+2026-02-12 19:53:57,224 - INFO - 正在加载文档: ./data/deepseek-v3-1-4.pdf
+2026-02-12 19:53:57,367 - INFO - 文档切分完成，共 6 个切片
+2026-02-12 19:54:00,047 - INFO - Loading faiss with AVX2 support.
+2026-02-12 19:54:00,068 - INFO - Successfully loaded faiss with AVX2 support.
+2026-02-12 19:54:00,077 - INFO - ✅ 向量数据库构建完成。
+2026-02-12 19:54:00,077 - INFO - ❓ 用户提问: DeepSeek-v3 有什么特点
+2026-02-12 19:54:00,077 - INFO - 正在调用大模型 API...
+2026-02-12 19:54:22,901 - INFO - HTTP Request: POST https://ark.cn-beijing.volces.com/api/v3/chat/completions "HTTP/1.1 200 OK"
+2026-02-12 19:54:22,912 - INFO - ✅ 任务成功完成

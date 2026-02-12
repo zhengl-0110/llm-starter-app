@@ -1,5 +1,6 @@
 import os
 from typing import List
+import logging  # <--- 新增
 
 # 导入 LangChain 相关组件
 from langchain_core.documents import Document
@@ -14,15 +15,20 @@ from langchain.chat_models import init_chat_model
 from langchain_openai import ChatOpenAI
 from config import DOUBAO_API_KEY, DOUBAO_BASE_URL, MODEL_NAME, VECTOR_SEARCH_K
 from prompts import get_rag_prompt
+# 引入具体的错误类型 (这是为了捕获特定的 API 错误)
+from openai import APIConnectionError, RateLimitError
 
 
+# 获取 logger 实例
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------
 # 第一把刀：数据加载与切分逻辑
 # ---------------------------------------------------------
 def load_and_split_document(file_path: str, chunk_size: int = 512, chunk_overlap: int = 200) -> List[Document]:
     """加载PDF文档并进行文本切分"""
-    print(f"📦 正在加载文档: {file_path}...")
+    # 替换 print 为 logger.info
+    logger.info(f"正在加载文档: {file_path}")
     loader = PyMuPDFLoader(file_path)
     pages = loader.load_and_split()
     
@@ -35,7 +41,7 @@ def load_and_split_document(file_path: str, chunk_size: int = 512, chunk_overlap
     
     # 按照你原代码的逻辑，这里仅做前1页的切分演示
     texts = text_splitter.create_documents([page.page_content for page in pages[:1]])
-    print(f"✅ 文档切分完成，共 {len(texts)} 个片段。")
+    logger.info(f"文档切分完成，共 {len(texts)} 个切片")
     return texts
 
 # ---------------------------------------------------------
@@ -45,11 +51,11 @@ def build_vector_store(documents: List[Document]) -> FAISS:
     """将文档片段向量化并存入 FAISS 向量数据库"""
     print("🧠 正在构建向量数据库...")
     embeddings = DashScopeEmbeddings(
-        model="text-embedding-v1", 
+        model="text-embedding-v3", 
         dashscope_api_key=os.getenv("DASHSCOPE_API_KEY") # 安全读取你的 API Key
     )
     db = FAISS.from_documents(documents, embeddings)
-    print("✅ 向量数据库构建完成。")
+    logger.info("✅ 向量数据库构建完成。")
     return db
 
 # ---------------------------------------------------------
@@ -57,6 +63,7 @@ def build_vector_store(documents: List[Document]) -> FAISS:
 # ---------------------------------------------------------
 def generate_rag_response(query: str, vector_store: FAISS) -> str:
     """核心 RAG 生成逻辑"""
+    logger.info("正在调用大模型 API...")
     retriever = vector_store.as_retriever(search_kwargs={"k": VECTOR_SEARCH_K})
     
     # 直接使用 config 里的常量
@@ -77,5 +84,20 @@ def generate_rag_response(query: str, vector_store: FAISS) -> str:
         | StrOutputParser()
     )
     
-    return rag_chain.invoke(query)
+    # 🌟 关键防御：给最容易出错的 API 调用加上“防弹衣”
+    try:
+        return rag_chain.invoke(query)
+        
+    except APIConnectionError:
+        logger.error("❌ 网络连接失败，请检查网线或代理设置")
+        return "抱歉，我连不上大脑了（网络错误）。"
+        
+    except RateLimitError:
+        logger.error("❌ API 调用太快被限流了")
+        return "我有点累，请稍后再试（限流）。"
+        
+    except Exception as e:
+        # 捕获所有其他未知的错误
+        logger.error(f"❌ 未知错误: {str(e)}")
+        raise e  # 抛出异常，让 main.py 里的总开关去处理
 

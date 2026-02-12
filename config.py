@@ -1,4 +1,4 @@
-# config.py
+# 想换个模型，只要改 config.py
 import os
 from dotenv import load_dotenv
 

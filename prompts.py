@@ -1,4 +1,4 @@
-# prompts.py
+# 想优化回答效果，只要改 prompts.py
 from langchain_core.prompts import ChatPromptTemplate
 
 # 基础 RAG 问答模板

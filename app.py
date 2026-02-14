@@ -1,10 +1,9 @@
 import streamlit as st
 import os
-# 复用我们之前写好的核心逻辑
-from core import load_and_split_document, build_vector_store, generate_rag_response
+from core import load_and_split_document, build_vector_store, stream_rag_response
 
 # 设置页面标题
-st.set_page_config(page_title="我的 AI 知识库助手", page_icon="🤖")
+st.set_page_config(page_title="小雷的 AI 知识库助手", page_icon="🤖")
 st.title("🤖 小雷的 AI 智能问答助手")
 
 # --- 侧边栏：文件上传区 ---
@@ -14,54 +13,63 @@ with st.sidebar:
     
     # 增加一个重置按钮
     if st.button("清除历史"):
-        if "vector_store" in st.session_state:
-            del st.session_state["vector_store"]
+        # 清除所有缓存
+        for key in ["vector_store", "current_file"]:
+            if key in st.session_state:
+                del st.session_state[key]
         st.rerun()
 
 # --- 主逻辑区 ---
 if uploaded_file:
-    # 1. 处理文件：Streamlit 上传的是内存对象，我们需要把它存到硬盘上才能让 PyMuPDFLoader 读取
+    # 🛠️ 优化 1：确保 data 目录存在，防止报错
+    os.makedirs("data", exist_ok=True)
+    
     file_path = os.path.join("data", uploaded_file.name)
     
-    # 只有当文件还没保存过，或者换了新文件时才写入
+    # 保存文件
     if not os.path.exists(file_path):
         with open(file_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
         st.toast(f"文件已保存: {uploaded_file.name}", icon="✅")
 
-    # 2. 构建知识库 (关键点：使用 session_state 避免重复计算)
-    # 只有当 session_state 里没有 vector_store 时，才去执行耗时的构建过程
-    if "vector_store" not in st.session_state:
-        with st.spinner("正在阅读文档并构建知识库... (这可能需要一点时间)"):
+    # 🛠️ 优化 2：检测是否换了新文件
+    # 如果当前没有库，或者上传的文件名和内存里的不一样，就重新构建
+    is_new_file = "current_file" not in st.session_state or st.session_state["current_file"] != uploaded_file.name
+    
+    if is_new_file:
+        with st.spinner(f"正在学习新文档: {uploaded_file.name} ..."):
             try:
+                # 重新构建
                 docs = load_and_split_document(file_path)
                 vector_store = build_vector_store(docs)
-                # 把构建好的库“存”进浏览器的缓存里
+                
+                # 更新 session_state
                 st.session_state["vector_store"] = vector_store
-                st.success(f"✅ 知识库构建完成！包含 {len(docs)} 个文档切片。")
+                st.session_state["current_file"] = uploaded_file.name # 👈 记住当前文件名
+                
+                st.success(f"✅ 新知识库构建完成！包含 {len(docs)} 个片段。")
             except Exception as e:
                 st.error(f"构建失败: {e}")
-    else:
-        st.info("🧠 知识库已就绪，可以直接提问。")
+    
+    # 提示当前正在使用的文件
+    elif "vector_store" in st.session_state:
+        st.info(f"🧠 当前知识库: {st.session_state['current_file']} (已就绪)")
 
-    st.divider() # 画一条分割线
+    st.divider()
 
-    # 3. 问答交互区
-    # 创建一个聊天输入框
+    # 3. 问答交互区 (保持不变)
     prompt = st.chat_input("在这个文档里找什么？")
     
     if prompt:
-        # 显示用户的提问
         with st.chat_message("user"):
             st.write(prompt)
 
-        # 显示 AI 的回答
         if "vector_store" in st.session_state:
             with st.chat_message("assistant"):
-                with st.spinner("AI 正在思考..."):
-                    # 调用我们 Day 2 写的核心函数
-                    response = generate_rag_response(prompt, st.session_state["vector_store"])
-                    st.write(response)
+                # 使用流式输出
+                response = st.write_stream(
+                    stream_rag_response(prompt, st.session_state["vector_store"])
+                )
         else:
             st.error("请先等待知识库构建完成。")
 

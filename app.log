@@ -127,3 +127,114 @@ requests.exceptions.ConnectionError: ('Connection aborted.', ConnectionAbortedEr
 2026-02-12 19:54:00,077 - INFO - 正在调用大模型 API...
 2026-02-12 19:54:22,901 - INFO - HTTP Request: POST https://ark.cn-beijing.volces.com/api/v3/chat/completions "HTTP/1.1 200 OK"
 2026-02-12 19:54:22,912 - INFO - ✅ 任务成功完成
+2026-02-13 14:22:38,404 - INFO - 🚀 程序启动，准备分析文件: ./data/deepseek-v3-1-4.pdf
+2026-02-13 14:22:38,406 - INFO - 正在加载文档: ./data/deepseek-v3-1-4.pdf
+2026-02-13 14:22:38,675 - INFO - 文档切分完成，共 6 个切片
+2026-02-13 14:22:40,942 - ERROR - HTTPSConnectionPool(host='dashscope.aliyuncs.com', port=443): Max retries exceeded with url: /api/v1/services/embeddings/text-embedding/text-embedding (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1017)')))
+2026-02-13 14:22:40,943 - ERROR - 💥 程序发生致命错误
+urllib3.exceptions.SSLError: [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1017)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\requests\adapters.py", line 644, in send
+    resp = conn.urlopen(
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\urllib3\connectionpool.py", line 841, in urlopen
+    retries = retries.increment(
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\urllib3\util\retry.py", line 535, in increment
+    raise MaxRetryError(_pool, url, reason) from reason  # type: ignore[arg-type]
+urllib3.exceptions.MaxRetryError: HTTPSConnectionPool(host='dashscope.aliyuncs.com', port=443): Max retries exceeded with url: /api/v1/services/embeddings/text-embedding/text-embedding (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1017)')))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\vs_code\llm-starter\main.py", line 37, in main
+    db = build_vector_store(docs)
+  File "D:\vs_code\llm-starter\core.py", line 57, in build_vector_store
+    db = FAISS.from_documents(documents, embeddings)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\langchain_core\vectorstores\base.py", line 814, in from_documents
+    return cls.from_texts(texts, embedding, metadatas=metadatas, **kwargs)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\langchain_community\vectorstores\faiss.py", line 1043, in from_texts
+    embeddings = embedding.embed_documents(texts)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\langchain_community\embeddings\dashscope.py", line 155, in embed_documents
+    embeddings = embed_with_retry(
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\langchain_community\embeddings\dashscope.py", line 83, in embed_with_retry
+    return _embed_with_retry(**kwargs)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\tenacity\__init__.py", line 331, in wrapped_f
+    return copy(f, *args, **kw)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\tenacity\__init__.py", line 470, in __call__
+    do = self.iter(retry_state=retry_state)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\tenacity\__init__.py", line 371, in iter
+    result = action(retry_state)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\tenacity\__init__.py", line 393, in <lambda>
+    self._add_action_func(lambda rs: rs.outcome.result())
+  File "D:\anconda3\envs\llm-starter\lib\concurrent\futures\_base.py", line 451, in result
+    return self.__get_result()
+  File "D:\anconda3\envs\llm-starter\lib\concurrent\futures\_base.py", line 403, in __get_result
+    raise self._exception
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\tenacity\__init__.py", line 473, in __call__
+    result = fn(*args, **kwargs)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\langchain_community\embeddings\dashscope.py", line 66, in _embed_with_retry
+    resp = embeddings.client.call(**kwargs)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\dashscope\embeddings\text_embedding.py", line 52, in call
+    return super().call(
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\dashscope\client\base_api.py", line 515, in call
+    return request.call()
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\dashscope\api_entities\http_request.py", line 143, in call
+    output = next(response)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\dashscope\api_entities\http_request.py", line 501, in _handle_request
+    raise e
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\dashscope\api_entities\http_request.py", line 475, in _handle_request
+    response = session.post(
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\requests\sessions.py", line 637, in post
+    return self.request("POST", url, data=data, json=json, **kwargs)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\requests\sessions.py", line 589, in request
+    resp = self.send(prep, **send_kwargs)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\requests\sessions.py", line 703, in send
+    r = adapter.send(request, **kwargs)
+  File "D:\anconda3\envs\llm-starter\lib\site-packages\requests\adapters.py", line 675, in send
+    raise SSLError(e, request=request)
+requests.exceptions.SSLError: HTTPSConnectionPool(host='dashscope.aliyuncs.com', port=443): Max retries exceeded with url: /api/v1/services/embeddings/text-embedding/text-embedding (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1017)')))
+2026-02-13 14:23:17,450 - INFO - 🚀 程序启动，准备分析文件: ./data/deepseek-v3-1-4.pdf
+2026-02-13 14:23:17,451 - INFO - 正在加载文档: ./data/deepseek-v3-1-4.pdf
+2026-02-13 14:23:17,609 - INFO - 文档切分完成，共 6 个切片
+2026-02-13 14:23:20,254 - INFO - Loading faiss with AVX2 support.
+2026-02-13 14:23:20,323 - INFO - Successfully loaded faiss with AVX2 support.
+2026-02-13 14:23:20,334 - INFO - ✅ 向量数据库构建完成。
+2026-02-13 14:23:20,334 - INFO - ❓ 用户提问: deepseek有多少参数
+2026-02-13 14:23:20,335 - INFO - 正在调用大模型 API...
+2026-02-13 14:23:32,436 - INFO - HTTP Request: POST https://ark.cn-beijing.volces.com/api/v3/chat/completions "HTTP/1.1 200 OK"
+2026-02-13 14:23:32,448 - INFO - ✅ 任务成功完成
+2026-02-14 21:47:33,847 - INFO - 🚀 程序启动，准备分析文件: ./data/deepseek-v3-1-4.pdf
+2026-02-14 21:47:33,848 - INFO - 正在加载文档: ./data/deepseek-v3-1-4.pdf
+2026-02-14 21:47:34,115 - INFO - 文档切分完成，共 43 个片段
+2026-02-14 21:47:34,115 - INFO - 正在构建向量数据库...
+2026-02-14 21:47:38,536 - INFO - Loading faiss with AVX2 support.
+2026-02-14 21:47:38,560 - INFO - Successfully loaded faiss with AVX2 support.
+2026-02-14 21:47:38,574 - INFO - 向量数据库构建完毕
+2026-02-14 21:47:38,575 - INFO - ❓ 用户提问: DeepSeek 有多少参数
+2026-02-14 21:47:38,575 - INFO - 正在调用大模型 API (同步模式)...
+2026-02-14 21:47:51,027 - INFO - HTTP Request: POST https://ark.cn-beijing.volces.com/api/v3/chat/completions "HTTP/1.1 200 OK"
+2026-02-14 21:47:51,040 - INFO - ✅ 任务成功完成
+2026-02-14 21:51:04,934 - INFO - 🚀 程序启动，准备分析文件: ./data/deepseek-v3-1-4.pdf
+2026-02-14 21:51:04,934 - INFO - 正在加载文档: ./data/deepseek-v3-1-4.pdf
+2026-02-14 21:51:05,148 - INFO - 文档切分完成，共 43 个片段
+2026-02-14 21:51:05,148 - INFO - 正在构建向量数据库...
+2026-02-14 21:51:09,373 - INFO - Loading faiss with AVX2 support.
+2026-02-14 21:51:09,397 - INFO - Successfully loaded faiss with AVX2 support.
+2026-02-14 21:51:09,410 - INFO - 向量数据库构建完毕
+2026-02-14 21:51:09,410 - INFO - ❓ 用户提问: How many parameters does DeepSeek-V3 have?
+2026-02-14 21:51:09,412 - INFO - 正在调用大模型 API (同步模式)...
+2026-02-14 21:51:22,636 - INFO - HTTP Request: POST https://ark.cn-beijing.volces.com/api/v3/chat/completions "HTTP/1.1 200 OK"
+2026-02-14 21:51:22,648 - INFO - ✅ 任务成功完成
+2026-02-14 22:05:39,378 - INFO - 🚀 程序启动，准备分析文件: ./data/deepseek-v3-1-4.pdf
+2026-02-14 22:05:39,379 - INFO - 正在加载文档: ./data/deepseek-v3-1-4.pdf
+2026-02-14 22:05:39,589 - INFO - 文档切分完成，共 20 个片段
+2026-02-14 22:05:39,590 - INFO - 正在构建向量数据库...
+2026-02-14 22:05:42,602 - INFO - Loading faiss with AVX2 support.
+2026-02-14 22:05:42,625 - INFO - Successfully loaded faiss with AVX2 support.
+2026-02-14 22:05:42,635 - INFO - 向量数据库构建完毕
+2026-02-14 22:05:42,635 - INFO - ❓ 用户提问: How many parameters does DeepSeek-V3 have?
+2026-02-14 22:05:42,636 - INFO - 正在调用大模型 API (同步模式)...
+2026-02-14 22:06:01,882 - INFO - HTTP Request: POST https://ark.cn-beijing.volces.com/api/v3/chat/completions "HTTP/1.1 200 OK"
+2026-02-14 22:06:01,893 - INFO - ✅ 任务成功完成

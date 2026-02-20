@@ -14,8 +14,8 @@ with st.sidebar:
     
     # 🌟 【改造 1】：开启 accept_multiple_files=True
     uploaded_files = st.file_uploader(
-        "请上传文件 (支持多选：PDF, Word, TXT, MD)", 
-        type=["pdf", "txt", "docx", "md"],
+        "请上传文件 (支持多选:PDF, Word, TXT, MD, CSV)", 
+        type=["pdf", "txt", "docx", "md", "csv"],
         accept_multiple_files=True # <--- 关键参数！
     )
     

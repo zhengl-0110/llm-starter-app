@@ -20,12 +20,7 @@ logger = logging.getLogger(__name__)
 # --- 1. 加载函数 (保留了 chunk_size=1000 的优化) ---
 def load_and_split_document(file_path: str) -> List[Document]:
     logger.info(f"正在加载文档: {file_path}")
-    from langchain_community.document_loaders import (
-        PyMuPDFLoader, 
-        TextLoader, 
-        Docx2txtLoader,
-        UnstructuredMarkdownLoader
-    )
+    from langchain_community.document_loaders import CSVLoader
     from langchain_text_splitters import RecursiveCharacterTextSplitter
     
     # 1. 获取文件扩展名 (例如 .pdf, .txt)
@@ -33,16 +28,25 @@ def load_and_split_document(file_path: str) -> List[Document]:
     
     # 2. 工厂模式：根据后缀选择加载器
     if ext == ".pdf":
+        from langchain_community.document_loaders import PyMuPDFLoader
         loader = PyMuPDFLoader(file_path)
     elif ext == ".txt":
-        # encoding="utf-8" 很重要，防止中文乱码
+        from langchain_community.document_loaders import TextLoader
         loader = TextLoader(file_path, encoding="utf-8")
     elif ext == ".docx":
+        from langchain_community.document_loaders import Docx2txtLoader
         loader = Docx2txtLoader(file_path)
     elif ext == ".md":
+        from langchain_community.document_loaders import UnstructuredMarkdownLoader
         loader = UnstructuredMarkdownLoader(file_path)
+    # 🌟 【新增】：处理 CSV 文件
+    elif ext == ".csv":
+        # CSVLoader 会自动把每一行变成 "列名: 值" 的格式，不需要再用 Splitter 切分了！
+        loader = CSVLoader(file_path, encoding="utf-8")
+        pages = loader.load() # CSV 直接 load 出来就是完美的片段
+        logger.info(f"CSV 加载完成，共 {len(pages)} 行数据片段")
+        return pages # ⚠️ 如果是 CSV，我们直接 return pages，不让剪刀（Splitter）去碰它！
     else:
-        # 遇到不支持的格式，抛出异常或者返回空
         raise ValueError(f"不支持的文件格式: {ext}")
     
     # 3. 加载文档

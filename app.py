@@ -116,6 +116,23 @@ if uploaded_file:
         # 3. 生成回答
         if "vector_store" in st.session_state:
             with st.chat_message("assistant"):
+                # 🌟 【Day 12 新增】：溯源面板 (Source Tracing)
+                # 在大模型回答之前，我们手动去向量库里搜一下最相关的 3 个片段
+                # 然后把它们塞进一个可以折叠的面板 (expander) 里
+                retrieved_docs = st.session_state["vector_store"].similarity_search(prompt, k=3)
+                
+                with st.expander("📚 查看 AI 参考的原文片段 (点击展开)"):
+                    for i, doc in enumerate(retrieved_docs):
+                        # 获取文档来源的文件名 (如果在 metadata 里有的话)
+                        source_name = doc.metadata.get('source', '未知来源')
+                        # 提取文件名，去掉前面的路径
+                        import os
+                        short_name = os.path.basename(source_name)
+                        
+                        st.markdown(f"**片段 {i+1}** (来自 `{short_name}`):")
+                        # 为了不占太多屏幕，只展示前 200 个字
+                        st.info(f"{doc.page_content[:200]}...")
+
                 # 🌟 核心修改：把选中的 selected_prompt_text 传进去
                 response = st.write_stream(
                     stream_rag_response(

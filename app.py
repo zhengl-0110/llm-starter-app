@@ -121,10 +121,16 @@ if uploaded_files:
         # 3. 生成回答
         if "vector_store" in st.session_state:
             with st.chat_message("assistant"):
-                # 🌟 【Day 12 新增】：溯源面板 (Source Tracing)
-                # 在大模型回答之前，我们手动去向量库里搜一下最相关的 3 个片段
-                # 然后把它们塞进一个可以折叠的面板 (expander) 里
-                retrieved_docs = st.session_state["vector_store"].similarity_search(prompt, k=3)
+                # 🌟 【Day 14 新增】：动态思考状态栏
+                with st.status("🧠 正在思考中...", expanded=True) as status:
+                    st.write("🔍 正在翻阅知识库寻找线索...")
+                    # 1. 执行检索
+                    retrieved_docs = st.session_state["vector_store"].similarity_search(prompt, k=3)
+                    st.write(f"✅ 找到了 {len(retrieved_docs)} 个高度相关的片段！")
+                    
+                    st.write("⚙️ 正在结合人设组织语言...")
+                    # 状态更新为完成，并自动折叠
+                    status.update(label="💡 思考完毕，开始回答！", state="complete", expanded=False)
                 
                 with st.expander("📚 查看 AI 参考的原文片段 (点击展开)"):
                     for i, doc in enumerate(retrieved_docs):

@@ -18,41 +18,79 @@ from prompts import get_rag_prompt
 logger = logging.getLogger(__name__)
 
 # --- 1. 加载函数 (保留了 chunk_size=1000 的优化) ---
-def load_and_split_document(file_path: str) -> List[Document]:
+def load_and_split_document(file_path: str):
     logger.info(f"正在加载文档: {file_path}")
-    from langchain_community.document_loaders import CSVLoader
-    from langchain_text_splitters import RecursiveCharacterTextSplitter
-    
-    # 1. 获取文件扩展名 (例如 .pdf, .txt)
     ext = os.path.splitext(file_path)[1].lower()
     
-    # 2. 工厂模式：根据后缀选择加载器
+    from langchain_community.document_loaders import CSVLoader
+    from langchain_core.documents import Document
+    
+    # ==========================================
+    # 第一步：根据文件类型，把内容都装进 pages 列表
+    # ==========================================
     if ext == ".pdf":
         from langchain_community.document_loaders import PyMuPDFLoader
+        import fitz
+        import base64
+        
         loader = PyMuPDFLoader(file_path)
+        pages = loader.load() # 🌟 只加载文本，不 split
+        
+        # 多模态提取流水线
+        image_descriptions = []
+        try:
+            pdf_doc = fitz.open(file_path)
+            for page_num in range(len(pdf_doc)):
+                page = pdf_doc[page_num]
+                image_list = page.get_images(full=True)
+                for img_index, img in enumerate(image_list):
+                    xref = img[0]
+                    base_image = pdf_doc.extract_image(xref)
+                    image_bytes = base_image["image"]
+                    
+                    print(f"🔎 [Debug] 在第 {page_num+1} 页发现图片，大小: {len(image_bytes)} 字节")
+                    if len(image_bytes) < 1024:
+                        continue
+                        
+                    print("   -> ✅ 大小合格，呼叫视觉大模型！")
+                    b64_img = base64.b64encode(image_bytes).decode('utf-8')
+                    desc = _describe_image(b64_img)
+                    
+                    if desc:
+                        print(f"   -> 🧠 解析完成：{desc[:20]}...")
+                        image_descriptions.append(Document(
+                            page_content=f"[第{page_num+1}页的图片/图表解析]:\n{desc}",
+                            metadata={"source": file_path, "page": page_num}
+                        ))
+            pdf_doc.close()
+        except Exception as e:
+            logger.error(f"PDF 图片提取失败: {e}")
+            
+        # 把图片解析结果和纯文本合并！
+        pages.extend(image_descriptions)
+        
     elif ext == ".txt":
         from langchain_community.document_loaders import TextLoader
         loader = TextLoader(file_path, encoding="utf-8")
+        pages = loader.load() # 🌟 统一改成 load
     elif ext == ".docx":
         from langchain_community.document_loaders import Docx2txtLoader
         loader = Docx2txtLoader(file_path)
+        pages = loader.load()
     elif ext == ".md":
         from langchain_community.document_loaders import UnstructuredMarkdownLoader
         loader = UnstructuredMarkdownLoader(file_path)
-    # 🌟 【新增】：处理 CSV 文件
+        pages = loader.load()
     elif ext == ".csv":
-        # CSVLoader 会自动把每一行变成 "列名: 值" 的格式，不需要再用 Splitter 切分了！
         loader = CSVLoader(file_path, encoding="utf-8")
-        pages = loader.load() # CSV 直接 load 出来就是完美的片段
-        logger.info(f"CSV 加载完成，共 {len(pages)} 行数据片段")
-        return pages # ⚠️ 如果是 CSV，我们直接 return pages，不让剪刀（Splitter）去碰它！
+        pages = loader.load()
+        return pages # CSV 依然直接放行
     else:
         raise ValueError(f"不支持的文件格式: {ext}")
     
-    # 3. 加载文档
-    pages = loader.load_and_split()
-    
-    # 4. 切分文档 (保持 Day 7 的 1000/300 配置)
+    # ==========================================
+    # 第二步：统一用文本切分器进行切分
+    # ==========================================
     from langchain_text_splitters import RecursiveCharacterTextSplitter
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000, 
@@ -60,10 +98,12 @@ def load_and_split_document(file_path: str) -> List[Document]:
         length_function=len, 
         add_start_index=True,
     )
-    # texts = text_splitter.create_documents([page.page_content for page in pages])
-    # 🌟 【修复 Bug】：不要用 create_documents 提取纯文本
-    # 🌟 改用 split_documents，它会自动继承原有 Document 的 metadata（包含文件名）
     texts = text_splitter.split_documents(pages)
+    
+    # 🌟 防呆设计：如果切分后发现是空的，给一个兜底内容，防止 FAISS 报错
+    if not texts:
+        texts = [Document(page_content="[该文档内容为空或无法识别文本/图片]", metadata={"source": file_path})]
+        
     logger.info(f"文档切分完成，共 {len(texts)} 个片段")
     return texts
 
@@ -253,5 +293,37 @@ def rewrite_query(original_query: str, chat_history: list) -> str:
     except Exception as e:
         logger.error(f"重写失败: {e}")
         return original_query # 如果失败，就用原话硬搜
+
+# 🌟 【Day 18 新增】：视觉模型解析器
+def _describe_image(base64_image: str) -> str:
+    from langchain_openai import ChatOpenAI
+    from langchain_core.messages import HumanMessage
+    from config import MODEL_BASE_URL, MODEL_API_KEY
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # ⚠️ 注意这里：我们用的是 qwen-vl-max (VL代表 Vision Language)
+    vision_llm = ChatOpenAI(
+        temperature=0.1,
+        base_url=MODEL_BASE_URL,
+        api_key=MODEL_API_KEY,
+        model="qwen3-vl-flash-2026-01-22" 
+    )
+    
+    # 构造 OpenAI 兼容的视觉请求格式
+    msg = HumanMessage(
+        content=[
+            {"type": "text", "text": "你是一个严谨的数据分析师。请详细描述这张图片或图表的内容。如果是图表，请务必提取其中的核心数据、趋势和结论。不要有任何废话。"},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+        ]
+    )
+    
+    try:
+        logger.info("👀 发现图片，正在呼叫视觉大模型进行解析...")
+        response = vision_llm.invoke([msg])
+        return response.content
+    except Exception as e:
+        logger.error(f"图片解析失败: {e}")
+        return ""
 
 

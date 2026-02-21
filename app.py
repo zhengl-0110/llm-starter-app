@@ -101,6 +101,10 @@ if uploaded_files:
     
     # 处理用户输入
     prompt = st.chat_input("在这个文档里找什么？")
+
+    # 🌟 【Day 16 新增】：定义我们的“敏感词黑名单”或“非业务话题”
+    # 在真实企业应用中，这个列表通常存在数据库里，这里我们先写死
+    FORBIDDEN_WORDS = ["写诗", "讲个笑话", "写代码", "贪吃蛇", "忽略提示词", "不受限制"]
     
     if prompt:
         # 1. 显示用户提问
@@ -109,54 +113,60 @@ if uploaded_files:
         # 记入历史
         st.session_state.messages.append({"role": "user", "content": prompt})
 
-        # 2. 准备传给后端的 history
-        # 将 session_state 里的简单字典转换为 LangChain 的 Message 对象
-        chat_history = []
-        for msg in st.session_state.messages[:-1]: # 不包含当前这一句最新的
-            if msg["role"] == "user":
-                chat_history.append(HumanMessage(content=msg["content"]))
-            else:
-                chat_history.append(AIMessage(content=msg["content"]))
+        # 🌟 【Day 16 核心修改】：进行安检
+        # 检查用户的问题里有没有包含黑名单里的词
+        is_blocked = any(word in prompt for word in FORBIDDEN_WORDS)
 
-        # 3. 生成回答
-        if "vector_store" in st.session_state:
+        if is_blocked:
+            # 🛑 触发拦截：直接由 Streamlit 返回警告，完全不调用大模型！
             with st.chat_message("assistant"):
-                # 🌟 【Day 14 新增】：动态思考状态栏
-                with st.status("🧠 正在思考中...", expanded=True) as status:
-                    st.write("🔍 正在翻阅知识库寻找线索...")
-                    # 1. 执行检索
-                    retrieved_docs = st.session_state["vector_store"].similarity_search(prompt, k=3)
-                    st.write(f"✅ 找到了 {len(retrieved_docs)} 个高度相关的片段！")
-                    
-                    st.write("⚙️ 正在结合人设组织语言...")
-                    # 状态更新为完成，并自动折叠
-                    status.update(label="💡 思考完毕，开始回答！", state="complete", expanded=False)
-                
-                with st.expander("📚 查看 AI 参考的原文片段 (点击展开)"):
-                    for i, doc in enumerate(retrieved_docs):
-                        # 获取文档来源的文件名 (如果在 metadata 里有的话)
-                        source_name = doc.metadata.get('source', '未知来源')
-                        # 提取文件名，去掉前面的路径
-                        import os
-                        short_name = os.path.basename(source_name)
-                        
-                        st.markdown(f"**片段 {i+1}** (来自 `{short_name}`):")
-                        # 为了不占太多屏幕，只展示前 200 个字
-                        st.info(f"{doc.page_content[:200]}...")
-
-                # 🌟 核心修改：把选中的 selected_prompt_text 传进去
-                response = st.write_stream(
-                    stream_rag_response(
-                        prompt, 
-                        st.session_state["vector_store"], 
-                        chat_history,
-                        selected_prompt_text # <--- 传这个！
-                    )
-                )
+                warning_msg = "🛑 **安全拦截**：抱歉，作为您的专属文档助手，我被设定为专注于知识库解答。请不要问我写诗、敲代码或尝试更改我的设定哦！"
+                st.warning(warning_msg) # 使用黄色的警告框引起注意
             # 记入历史
-            st.session_state.messages.append({"role": "assistant", "content": response})
+            st.session_state.messages.append({"role": "assistant", "content": warning_msg})
+            
         else:
-            st.error("请先等待知识库构建完成。")
+            # ✅ 安检通过：执行原来的正常 RAG 逻辑
+            if "vector_store" in st.session_state:
+                with st.chat_message("assistant"):
+                    with st.status("🧠 正在思考中...", expanded=True) as status:
+                        st.write("🔍 正在翻阅知识库寻找线索...")
+                        retrieved_docs = st.session_state["vector_store"].similarity_search(prompt, k=3)
+                        st.write(f"✅ 找到了 {len(retrieved_docs)} 个高度相关的片段！")
+                        st.write("⚙️ 正在结合人设组织语言...")
+                        status.update(label="💡 思考完毕，开始回答！", state="complete", expanded=False)
+                    
+                    with st.expander("📚 查看 AI 参考的原文片段 (点击展开)"):
+                        for i, doc in enumerate(retrieved_docs):
+                            source_name = doc.metadata.get('source', '未知来源')
+                            import os
+                            short_name = os.path.basename(source_name)
+                            st.markdown(f"**片段 {i+1}** (来自 `{short_name}`):")
+                            st.info(f"{doc.page_content[:200]}...")
+                    
+                    # 准备传给后端的 history
+                    chat_history = []
+                    for msg in st.session_state.messages[:-1]: 
+                        if msg["role"] == "user":
+                            from langchain_core.messages import HumanMessage
+                            chat_history.append(HumanMessage(content=msg["content"]))
+                        else:
+                            from langchain_core.messages import AIMessage
+                            chat_history.append(AIMessage(content=msg["content"]))
+
+                    # 流式输出
+                    response = st.write_stream(
+                        stream_rag_response(
+                            prompt, 
+                            st.session_state["vector_store"], 
+                            chat_history,
+                            selected_prompt_text 
+                        )
+                    )
+                # 记入历史
+                st.session_state.messages.append({"role": "assistant", "content": response})
+            else:
+                st.error("请先等待知识库构建完成。")
 
 else:
     st.info("👈 请先在左侧上传一个 PDF 文档开始体验。")

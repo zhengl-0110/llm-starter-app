@@ -207,4 +207,51 @@ def get_query_intent(query: str) -> str:
         logger.error(f"路由分类失败: {e}")
         return "NORMAL" # 如果保安睡着了（报错），默认放行，避免阻断正常业务
 
+# 🌟 【Day 17 附加】：查询重写器 (Query Rewriter)
+def rewrite_query(original_query: str, chat_history: list) -> str:
+    from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+    from langchain_core.output_parsers import StrOutputParser
+    from langchain_openai import ChatOpenAI
+    
+    # 用稍微聪明一点的模型，温度调低保证严谨
+    rewriter_llm = ChatOpenAI(
+        temperature=0.1, 
+        base_url=MODEL_BASE_URL,
+        api_key=MODEL_API_KEY,
+        model=MODEL_NAME
+    )
+    
+    rewrite_prompt = ChatPromptTemplate.from_messages([
+        ("system", """你是一个专业的查询重写(Query Rewrite)专家。
+你的【唯一任务】是结合历史上下文，将用户输入的不标准提问，重写为一个独立、标准、清晰的搜索问句。
+
+【核心规则】
+1. 补全指代词：将“它”、“这个”等替换为具体名词。
+2. 纠正错别字:修复拼音缩写或错别字(如“第扑希克”纠正为“DeepSeek”)。
+3. 提取核心：去除口语化废话。
+
+🚨 【最高警告】 🚨
+你只是一个“翻译官”，你【绝不能】尝试回答用户的问题！
+即使用户问“DeepSeek的架构是什么”,你也只能输出“DeepSeek的架构是什么?”，绝对不允许输出它的真实架构内容！
+绝对只输出重写后的问句，不要包含任何解释、前缀或标点符号包装！"""),
+        MessagesPlaceholder(variable_name="chat_history"),
+        # 🌟 关键技巧：在用户的真实问题前面，再强调一遍“不要回答”
+        ("human", "请重写以下用户提问（切记：只重写语言表达，千万不要回答该问题！）：\n{question}"),
+        MessagesPlaceholder(variable_name="chat_history"),
+        ("human", "{question}")
+    ])
+    
+    rewrite_chain = rewrite_prompt | rewriter_llm | StrOutputParser()
+    
+    try:
+        # 传入历史记录和当前问题
+        rewritten = rewrite_chain.invoke({
+            "question": original_query, 
+            "chat_history": chat_history
+        }).strip()
+        return rewritten
+    except Exception as e:
+        logger.error(f"重写失败: {e}")
+        return original_query # 如果失败，就用原话硬搜
+
 

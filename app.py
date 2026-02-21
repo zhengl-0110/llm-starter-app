@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-from core import load_and_split_document, build_vector_store, stream_rag_response, load_vector_store, get_query_intent
+from core import load_and_split_document, build_vector_store, stream_rag_response, load_vector_store, get_query_intent, rewrite_query
 from langchain_core.messages import AIMessage, HumanMessage
 from prompts import PERSONAS
 
@@ -104,19 +104,37 @@ if uploaded_files:
 
     
     if prompt:
-        # 1. 显示用户提问
+        # 1. 显示并记录用户原始提问
         with st.chat_message("user"):
             st.markdown(prompt)
-        # 记入历史
         st.session_state.messages.append({"role": "user", "content": prompt})
 
-      # 🌟 【Day 17 核心修改】：呼叫大模型安检员
-        with st.spinner("🛡️ 安全合规检测中..."):
-            intent = get_query_intent(prompt)
-            # 在终端打印出来，方便我们观察大模型是怎么分类的
-            print(f"🚦 [Router] 用户输入: '{prompt}' -> 分类结果: {intent}")
-        
-        # 针对不同的意图，走不同的分支
+        # 2. 提取历史记录给“翻译官”参考
+        chat_history = []
+        for msg in st.session_state.messages[:-1]: 
+            if msg["role"] == "user":
+                from langchain_core.messages import HumanMessage
+                chat_history.append(HumanMessage(content=msg["content"]))
+            else:
+                from langchain_core.messages import AIMessage
+                chat_history.append(AIMessage(content=msg["content"]))
+
+        # 3. 核心流水线：重写 -> 路由 -> 监控
+        with st.spinner("⚙️ 正在理解您的真实意图..."):
+            # 【重写】：把烂问题变好问题
+            standard_query = rewrite_query(prompt, chat_history)
+            
+            # 【路由】：看好问题是不是违规
+            intent = get_query_intent(standard_query)
+            
+            # 🌟 你的超级监控探头：打印在终端黑框框里，方便排错！
+            print(f"🚦 [Pipeline] 原输入: '{prompt}' | 重写为: '{standard_query}' | 路由分类: {intent}")
+            
+        # 在界面上偷偷展示一下 AI 的内心戏...
+        if standard_query != prompt:
+            st.caption(f"*(💡 AI 已将您的输入优化为: {standard_query})*")
+
+        # 4. 根据安检结果走不同分支
         if "MALICIOUS" in intent:
             with st.chat_message("assistant"):
                 warning_msg = "🛑 **系统警告**：检测到不安全或违规的指令，请求已拦截。请规范使用知识库系统！"
@@ -129,18 +147,21 @@ if uploaded_files:
                 st.info(warning_msg)
             st.session_state.messages.append({"role": "assistant", "content": warning_msg})
             
-        else: # intent == "NORMAL" 或者解析失败默认放行
-            # ✅ 安检通过：执行正常的 RAG 流水线 (保持你之前的代码不动)
+        else:
+            # ✅ 安检通过：执行正常的 RAG 流水线
             if "vector_store" in st.session_state:
                 with st.chat_message("assistant"):
                     with st.status("🧠 正在思考中...", expanded=True) as status:
                         st.write("🔍 正在翻阅知识库寻找线索...")
-                        # ... 下面的相似度搜索和流式输出代码保持原样 ...
-                        retrieved_docs = st.session_state["vector_store"].similarity_search(prompt, k=3)
+                        
+                        # 🌟 关键：拿重写后的标准问题去检索！
+                        retrieved_docs = st.session_state["vector_store"].similarity_search(standard_query, k=3)
+                        
                         st.write(f"✅ 找到了 {len(retrieved_docs)} 个高度相关的片段！")
                         st.write("⚙️ 正在结合人设组织语言...")
                         status.update(label="💡 思考完毕，开始回答！", state="complete", expanded=False)
                     
+                    # 展开溯源面板
                     with st.expander("📚 查看 AI 参考的原文片段 (点击展开)"):
                         for i, doc in enumerate(retrieved_docs):
                             source_name = doc.metadata.get('source', '未知来源')
@@ -149,17 +170,7 @@ if uploaded_files:
                             st.markdown(f"**片段 {i+1}** (来自 `{short_name}`):")
                             st.info(f"{doc.page_content[:200]}...")
                     
-                    # 准备传给后端的 history
-                    chat_history = []
-                    for msg in st.session_state.messages[:-1]: 
-                        if msg["role"] == "user":
-                            from langchain_core.messages import HumanMessage
-                            chat_history.append(HumanMessage(content=msg["content"]))
-                        else:
-                            from langchain_core.messages import AIMessage
-                            chat_history.append(AIMessage(content=msg["content"]))
-
-                    # 流式输出
+                    # 流式输出大模型最终回答
                     response = st.write_stream(
                         stream_rag_response(
                             prompt, 

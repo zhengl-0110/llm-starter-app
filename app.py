@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-from core import load_and_split_document, build_vector_store, stream_rag_response, load_vector_store
+from core import load_and_split_document, build_vector_store, stream_rag_response, load_vector_store, get_query_intent
 from langchain_core.messages import AIMessage, HumanMessage
 from prompts import PERSONAS
 
@@ -102,9 +102,6 @@ if uploaded_files:
     # 处理用户输入
     prompt = st.chat_input("在这个文档里找什么？")
 
-    # 🌟 【Day 16 新增】：定义我们的“敏感词黑名单”或“非业务话题”
-    # 在真实企业应用中，这个列表通常存在数据库里，这里我们先写死
-    FORBIDDEN_WORDS = ["写诗", "讲个笑话", "写代码", "贪吃蛇", "忽略提示词", "不受限制"]
     
     if prompt:
         # 1. 显示用户提问
@@ -113,24 +110,32 @@ if uploaded_files:
         # 记入历史
         st.session_state.messages.append({"role": "user", "content": prompt})
 
-        # 🌟 【Day 16 核心修改】：进行安检
-        # 检查用户的问题里有没有包含黑名单里的词
-        is_blocked = any(word in prompt for word in FORBIDDEN_WORDS)
-
-        if is_blocked:
-            # 🛑 触发拦截：直接由 Streamlit 返回警告，完全不调用大模型！
+      # 🌟 【Day 17 核心修改】：呼叫大模型安检员
+        with st.spinner("🛡️ 安全合规检测中..."):
+            intent = get_query_intent(prompt)
+            # 在终端打印出来，方便我们观察大模型是怎么分类的
+            print(f"🚦 [Router] 用户输入: '{prompt}' -> 分类结果: {intent}")
+        
+        # 针对不同的意图，走不同的分支
+        if "MALICIOUS" in intent:
             with st.chat_message("assistant"):
-                warning_msg = "🛑 **安全拦截**：抱歉，作为您的专属文档助手，我被设定为专注于知识库解答。请不要问我写诗、敲代码或尝试更改我的设定哦！"
-                st.warning(warning_msg) # 使用黄色的警告框引起注意
-            # 记入历史
+                warning_msg = "🛑 **系统警告**：检测到不安全或违规的指令，请求已拦截。请规范使用知识库系统！"
+                st.error(warning_msg)
             st.session_state.messages.append({"role": "assistant", "content": warning_msg})
             
-        else:
-            # ✅ 安检通过：执行原来的正常 RAG 逻辑
+        elif "CHITCHAT" in intent:
+            with st.chat_message("assistant"):
+                warning_msg = "☕ **闲聊拦截**：我是一个专门用来查阅文档的严肃 AI。对于写诗、讲笑话或敲代码，我实在不擅长哦，我们还是聊聊文档吧！"
+                st.info(warning_msg)
+            st.session_state.messages.append({"role": "assistant", "content": warning_msg})
+            
+        else: # intent == "NORMAL" 或者解析失败默认放行
+            # ✅ 安检通过：执行正常的 RAG 流水线 (保持你之前的代码不动)
             if "vector_store" in st.session_state:
                 with st.chat_message("assistant"):
                     with st.status("🧠 正在思考中...", expanded=True) as status:
                         st.write("🔍 正在翻阅知识库寻找线索...")
+                        # ... 下面的相似度搜索和流式输出代码保持原样 ...
                         retrieved_docs = st.session_state["vector_store"].similarity_search(prompt, k=3)
                         st.write(f"✅ 找到了 {len(retrieved_docs)} 个高度相关的片段！")
                         st.write("⚙️ 正在结合人设组织语言...")

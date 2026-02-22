@@ -87,19 +87,41 @@ if "vector_store" in st.session_state:
     if "session_id" not in st.session_state:
         st.session_state.session_id = str(uuid.uuid4())
 
-    # 连接本地数据库
+    # 🌟 连接本地数据库
     chat_db = SQLChatMessageHistory(
         session_id=st.session_state.session_id,
         connection_string="sqlite:///chat_history.db"
     )
 
-    # 从数据库中读取并渲染历史记录
-    for msg in chat_db.messages:
-        role = "user" if msg.type == "human" else "assistant"
-        with st.chat_message(role):
-            st.markdown(msg.content)
-    
-    # 横向排列文字输入框和麦克风
+    # ==========================================
+    # 🌟 核心修复：建立专属的“聊天记录包厢”
+    # ==========================================
+    msg_container = st.container()
+
+    # 把历史记录、欢迎卡片、清空按钮，统统装进包厢里！
+    with msg_container:
+        # 空状态欢迎卡片
+        if len(chat_db.messages) == 0:
+            st.info("👋 **欢迎来到 xiaolei 的专属 AI 空间！**\n\n你可以直接在下方输入文字，或者点击 🎙️ 麦克风与我语音交流。试试问我文档里的核心内容吧！")
+
+        # 从数据库中读取并渲染历史记录
+        for msg in chat_db.messages:
+            role = "user" if msg.type == "human" else "assistant"
+            avatar_icon = "🧑‍💻" if role == "user" else "⚡" 
+            with st.chat_message(role, avatar=avatar_icon):
+                st.markdown(msg.content)
+        
+        # 一键清空对话的按钮
+        if len(chat_db.messages) > 0:
+            _, clear_col = st.columns([8, 2])
+            with clear_col:
+                if st.button("🗑️ 清空对话", use_container_width=True):
+                    chat_db.clear() 
+                    st.rerun()      
+
+    # ==========================================
+    # 👇 下方永远是输入区（独立于包厢之外，自然沉底）
+    # ==========================================
     col1, col2 = st.columns([11, 1], vertical_alignment="bottom")
     
     with col1:
@@ -118,71 +140,70 @@ if "vector_store" in st.session_state:
             else:
                 st.error("抱歉，没听清您说什么，请再试一次或使用文字输入。")
     
+    # 当有新问题产生时...
     if prompt:
-        with st.chat_message("user"):
-            st.markdown(prompt)
-        # 写入数据库：记录用户的提问
-        chat_db.add_user_message(prompt)    
-
-        # 提取历史记录给“翻译官”参考
-        chat_history = chat_db.messages[:-1]
-
-        with st.spinner("⚙️ 正在理解您的真实意图..."):
-            standard_query = rewrite_query(prompt, chat_history)
-            intent = get_query_intent(standard_query)
-            print(f"🚦 [Pipeline] 原输入: '{prompt}' | 重写为: '{standard_query}' | 路由分类: {intent}")
+        # 🌟 核心修复：把未来的新提问和新回答，强制塞回楼上的“聊天记录包厢”里！
+        with msg_container:
             
-        if standard_query != prompt:
-            st.caption(f"*(💡 AI 已将您的输入优化为: {standard_query})*")
+            with st.chat_message("user", avatar="🧑‍💻"):
+                st.markdown(prompt)
+            chat_db.add_user_message(prompt)    
+            
+            chat_history = chat_db.messages[:-1]
 
-        if "MALICIOUS" in intent:
-            with st.chat_message("assistant"):
-                warning_msg = "🛑 **系统警告**：检测到不安全或违规的指令，请求已拦截。请规范使用知识库系统！"
-                st.error(warning_msg)
-            # 🌟 修复 Bug 2：用数据库记录拦截信息
-            chat_db.add_ai_message(warning_msg)
-            
-        elif "CHITCHAT" in intent:
-            with st.chat_message("assistant"):
-                warning_msg = "☕ **闲聊拦截**：我是一个专门用来查阅文档的严肃 AI。对于写诗、讲笑话或敲代码，我实在不擅长哦，我们还是聊聊文档吧！"
-                st.info(warning_msg)
-            # 🌟 修复 Bug 2：用数据库记录拦截信息
-            chat_db.add_ai_message(warning_msg)
-            
-        else:
-            with st.chat_message("assistant"):
-                with st.status("🧠 正在思考中...", expanded=True) as status:
-                    st.write("🔍 正在翻阅知识库寻找线索...")
-                    retrieved_docs = st.session_state["vector_store"].similarity_search(standard_query, k=3)
+            with st.spinner("⚙️ 正在理解您的真实意图..."):
+                standard_query = rewrite_query(prompt, chat_history)
+                intent = get_query_intent(standard_query)
+                print(f"🚦 [Pipeline] 原输入: '{prompt}' | 重写为: '{standard_query}' | 路由分类: {intent}")
+                
+            if standard_query != prompt:
+                st.caption(f"*(💡 AI 已将您的输入优化为: {standard_query})*")
+
+            if "MALICIOUS" in intent:
+                with st.chat_message("assistant", avatar="⚡"):
+                    warning_msg = "🛑 **系统警告**：检测到不安全或违规的指令，请求已拦截。请规范使用知识库系统！"
+                    st.error(warning_msg)
+                chat_db.add_ai_message(warning_msg)
+                
+            elif "CHITCHAT" in intent:
+                with st.chat_message("assistant", avatar="⚡"):
+                    warning_msg = "☕ **闲聊拦截**：我是一个专门用来查阅文档的严肃 AI。对于写诗、讲笑话或敲代码，我实在不擅长哦，我们还是聊聊文档吧！"
+                    st.info(warning_msg)
+                chat_db.add_ai_message(warning_msg)
+                
+            else:
+                with st.chat_message("assistant", avatar="⚡"):
+                    with st.status("🧠 正在思考中...", expanded=True) as status:
+                        st.write("🔍 正在翻阅知识库寻找线索...")
+                        retrieved_docs = st.session_state["vector_store"].similarity_search(standard_query, k=3)
+                        
+                        st.write(f"✅ 找到了 {len(retrieved_docs)} 个高度相关的片段！")
+                        st.write("⚙️ 正在结合人设组织语言...")
+                        status.update(label="💡 思考完毕，开始回答！", state="complete", expanded=False)
                     
-                    st.write(f"✅ 找到了 {len(retrieved_docs)} 个高度相关的片段！")
-                    st.write("⚙️ 正在结合人设组织语言...")
-                    status.update(label="💡 思考完毕，开始回答！", state="complete", expanded=False)
-                
-                with st.expander("📚 查看 AI 参考的原文片段 (点击展开)"):
-                    for i, doc in enumerate(retrieved_docs):
-                        source_name = doc.metadata.get('source', '未知来源')
-                        short_name = os.path.basename(source_name)
-                        st.markdown(f"**片段 {i+1}** (来自 `{short_name}`):")
-                        st.info(f"{doc.page_content[:200]}...")
-                
-                response = st.write_stream(
-                    stream_rag_response(
-                        prompt, 
-                        st.session_state["vector_store"], 
-                        chat_history,
-                        selected_prompt_text 
+                    with st.expander("📚 查看 AI 参考的原文片段 (点击展开)"):
+                        for i, doc in enumerate(retrieved_docs):
+                            source_name = doc.metadata.get('source', '未知来源')
+                            short_name = os.path.basename(source_name)
+                            st.markdown(f"**片段 {i+1}** (来自 `{short_name}`):")
+                            st.info(f"{doc.page_content[:200]}...")
+                    
+                    response = st.write_stream(
+                        stream_rag_response(
+                            prompt, 
+                            st.session_state["vector_store"], 
+                            chat_history,
+                            selected_prompt_text 
+                        )
                     )
-                )
-            
-            # 写入数据库：记录 AI 的最终回答
-            chat_db.add_ai_message(response)
+                
+                chat_db.add_ai_message(response)
 
-            if enable_tts:
-                with st.spinner("🎵 正在合成专属语音..."):
-                    audio_bytes = text_to_speech(response)
-                    if audio_bytes:
-                        st.audio(audio_bytes, format="audio/wav")
+                if enable_tts:
+                    with st.spinner("🎵 正在合成专属语音..."):
+                        audio_bytes = text_to_speech(response)
+                        if audio_bytes:
+                            st.audio(audio_bytes, format="audio/wav")
 
 # 如果系统里连 vector_store 都没有，显示提示语
 else:

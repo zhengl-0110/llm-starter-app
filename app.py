@@ -6,29 +6,30 @@ from core import (load_and_split_document, build_vector_store,
                     text_to_speech, speech_to_text)
 from langchain_core.messages import AIMessage, HumanMessage
 from prompts import PERSONAS
+from langchain_community.chat_message_histories import SQLChatMessageHistory
+import uuid
 
-#1 设置页面标题
+# 1 设置页面标题
 st.set_page_config(page_title="xiaolei的AI知识库助手", page_icon="🤖")
 st.title("xiaolei的AI问答助手")
 
-#2 --- 侧边栏：文件上传区 ---
+# 2 --- 侧边栏：文件上传区 ---
 with st.sidebar:
     st.header("📚 知识库构建")
     
-    # 🌟 【改造 1】：开启 accept_multiple_files=True
     uploaded_files = st.file_uploader(
         "请上传文件 (支持多选:PDF, Word, TXT, MD, CSV)", 
         type=["pdf", "txt", "docx", "md", "csv"],
-        accept_multiple_files=True # <--- 关键参数！
+        accept_multiple_files=True
     )
     
     if st.button("清除历史与缓存"):
-        for key in ["vector_store", "current_files", "messages"]:
+        # 🌟 修复 Bug 3：必须删掉 session_id，才能强行开启一段崭新的数据库记忆
+        for key in ["vector_store", "current_files", "messages", "session_id"]:
             if key in st.session_state:
                 del st.session_state[key]
         st.rerun()
 
-    # 人设选择器保持不变
     st.divider()
     st.header("🎭 AI 人设")
     selected_persona_name = st.selectbox(
@@ -40,187 +41,149 @@ with st.sidebar:
 
     st.divider()
     st.header("🔊 语音设置")
-    # 🌟 加一个酷炫的拨动开关
     enable_tts = st.toggle("开启语音播报", value=False)
 
 # 4. 核心逻辑：多文件处理
 if uploaded_files:
     os.makedirs("data", exist_ok=True)
-    
-    # 提取当前所有上传的文件名，拼成一个列表
     current_file_names = sorted([f.name for f in uploaded_files])
-    
-    # 🌟 【改造 2】：判断“文件组合”是否发生了变化
     is_new_file_combo = "current_files" not in st.session_state or st.session_state["current_files"] != current_file_names
     
     if is_new_file_combo:
-        # 为了给这批文件做个唯一的缓存名，我们把所有文件名拼起来做个简易 Hash
-        combo_name = "_".join(current_file_names)[:50] # 截取前50个字符防名字过长
-        
+        combo_name = "_".join(current_file_names)[:50] 
         with st.spinner(f"正在联合分析 {len(uploaded_files)} 个文档..."):
             try:
-                # 尝试读取多文档联合缓存
                 vector_store = load_vector_store(combo_name)
                 
                 if vector_store is None:
                     st.info("检测到新的文档组合，正在构建联合知识库...")
-                    all_docs = [] # 准备一个大纸箱，用来装所有切碎的纸片
-                    
-                    # 遍历每一个上传的文件
+                    all_docs = []
                     for uploaded_file in uploaded_files:
                         file_path = os.path.join("data", uploaded_file.name)
-                        # 保存到硬盘
                         if not os.path.exists(file_path):
                             with open(file_path, "wb") as f:
                                 f.write(uploaded_file.getbuffer())
-                        
-                        # 切碎，并扔进大纸箱
                         docs = load_and_split_document(file_path)
-                        all_docs.extend(docs) # 把列表合并
-                    
-                    # 把装满所有片段的大纸箱，一次性交给 FAISS 建库
+                        all_docs.extend(docs)
                     vector_store = build_vector_store(all_docs, combo_name)
                     st.success(f"✅ 联合知识库构建完成！共融合 {len(uploaded_files)} 个文件，{len(all_docs)} 个片段。")
                 else:
                     st.success(f"⚡ 发现多文档联合缓存，秒级加载成功！")
 
-                # 更新 Session
                 st.session_state["vector_store"] = vector_store
                 st.session_state["current_files"] = current_file_names
-                st.session_state.messages = [] 
                 
             except Exception as e:
                 st.error(f"构建失败: {e}")
-    
-    elif "vector_store" in st.session_state:
-        st.info(f"🧠 当前联合知识库包含 {len(current_file_names)} 个文件 (已就绪)")
 
+# ==========================================
+# 🌟 结构优化：用一个独立的大 if 来控制聊天界面，避免缩进混乱
+# ==========================================
+if "vector_store" in st.session_state:
+    st.info(f"🧠 当前联合知识库包含 {len(st.session_state['current_files'])} 个文件 (已就绪)")
     st.divider()
 
-    # 3. 问答交互区 
     # 初始化对话历史 (如果不存在的话)
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+    if "session_id" not in st.session_state:
+        st.session_state.session_id = str(uuid.uuid4())
 
-    # 🌟 关键：每次刷新页面，都要把历史聊天记录重新画出来
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    # 连接本地数据库
+    chat_db = SQLChatMessageHistory(
+        session_id=st.session_state.session_id,
+        connection_string="sqlite:///chat_history.db"
+    )
+
+    # 从数据库中读取并渲染历史记录
+    for msg in chat_db.messages:
+        role = "user" if msg.type == "human" else "assistant"
+        with st.chat_message(role):
+            st.markdown(msg.content)
     
-    # 处理用户输入
-    # 🌟 【Day 21 新增】：横向排列文字输入框和麦克风
-    # 💡 提示：加上 vertical_alignment="bottom" 可以让麦克风和输入框8；1比例在底部对齐，看起来更和谐！
+    # 横向排列文字输入框和麦克风
     col1, col2 = st.columns([11, 1], vertical_alignment="bottom")
     
     with col1:
         text_prompt = st.chat_input("在这个文档里找什么？")
     with col2:
-        # Streamlit 极度强大的原生麦克风组件！
         audio_value = st.audio_input("🎙️ 语音提问", label_visibility="collapsed")
     
-    # 到底是用打字的，还是用说话的？
     prompt = text_prompt
     
     if audio_value:
         with st.spinner("👂 正在努力听懂您的话..."):
-            # 取出音频的字节数据，丢给我们的速记员
             spoken_text = speech_to_text(audio_value.getvalue())
             if spoken_text:
                 prompt = spoken_text
-                # 把听到的内容偷偷在界面上展示一下，让用户知道 AI 没听错
                 st.toast(f"🗣️ 识别结果: {prompt}") 
             else:
                 st.error("抱歉，没听清您说什么，请再试一次或使用文字输入。")
-
     
     if prompt:
-        # 1. 显示并记录用户原始提问
         with st.chat_message("user"):
             st.markdown(prompt)
-        st.session_state.messages.append({"role": "user", "content": prompt})
+        # 写入数据库：记录用户的提问
+        chat_db.add_user_message(prompt)    
 
-        # 2. 提取历史记录给“翻译官”参考
-        chat_history = []
-        for msg in st.session_state.messages[:-1]: 
-            if msg["role"] == "user":
-                from langchain_core.messages import HumanMessage
-                chat_history.append(HumanMessage(content=msg["content"]))
-            else:
-                from langchain_core.messages import AIMessage
-                chat_history.append(AIMessage(content=msg["content"]))
+        # 提取历史记录给“翻译官”参考
+        chat_history = chat_db.messages[:-1]
 
-        # 3. 核心流水线：重写 -> 路由 -> 监控
         with st.spinner("⚙️ 正在理解您的真实意图..."):
-            # 【重写】：把烂问题变好问题
             standard_query = rewrite_query(prompt, chat_history)
-            
-            # 【路由】：看好问题是不是违规
             intent = get_query_intent(standard_query)
-            
-            # 🌟 你的超级监控探头：打印在终端黑框框里，方便排错！
             print(f"🚦 [Pipeline] 原输入: '{prompt}' | 重写为: '{standard_query}' | 路由分类: {intent}")
             
-        # 在界面上偷偷展示一下 AI 的内心戏...
         if standard_query != prompt:
             st.caption(f"*(💡 AI 已将您的输入优化为: {standard_query})*")
 
-        # 4. 根据安检结果走不同分支
         if "MALICIOUS" in intent:
             with st.chat_message("assistant"):
                 warning_msg = "🛑 **系统警告**：检测到不安全或违规的指令，请求已拦截。请规范使用知识库系统！"
                 st.error(warning_msg)
-            st.session_state.messages.append({"role": "assistant", "content": warning_msg})
+            # 🌟 修复 Bug 2：用数据库记录拦截信息
+            chat_db.add_ai_message(warning_msg)
             
         elif "CHITCHAT" in intent:
             with st.chat_message("assistant"):
                 warning_msg = "☕ **闲聊拦截**：我是一个专门用来查阅文档的严肃 AI。对于写诗、讲笑话或敲代码，我实在不擅长哦，我们还是聊聊文档吧！"
                 st.info(warning_msg)
-            st.session_state.messages.append({"role": "assistant", "content": warning_msg})
+            # 🌟 修复 Bug 2：用数据库记录拦截信息
+            chat_db.add_ai_message(warning_msg)
             
         else:
-            # ✅ 安检通过：执行正常的 RAG 流水线
-            if "vector_store" in st.session_state:
-                with st.chat_message("assistant"):
-                    with st.status("🧠 正在思考中...", expanded=True) as status:
-                        st.write("🔍 正在翻阅知识库寻找线索...")
-                        
-                        # 🌟 关键：拿重写后的标准问题去检索！
-                        retrieved_docs = st.session_state["vector_store"].similarity_search(standard_query, k=3)
-                        
-                        st.write(f"✅ 找到了 {len(retrieved_docs)} 个高度相关的片段！")
-                        st.write("⚙️ 正在结合人设组织语言...")
-                        status.update(label="💡 思考完毕，开始回答！", state="complete", expanded=False)
+            with st.chat_message("assistant"):
+                with st.status("🧠 正在思考中...", expanded=True) as status:
+                    st.write("🔍 正在翻阅知识库寻找线索...")
+                    retrieved_docs = st.session_state["vector_store"].similarity_search(standard_query, k=3)
                     
-                    # 展开溯源面板
-                    with st.expander("📚 查看 AI 参考的原文片段 (点击展开)"):
-                        for i, doc in enumerate(retrieved_docs):
-                            source_name = doc.metadata.get('source', '未知来源')
-                            import os
-                            short_name = os.path.basename(source_name)
-                            st.markdown(f"**片段 {i+1}** (来自 `{short_name}`):")
-                            st.info(f"{doc.page_content[:200]}...")
-                    
-                    # 流式输出大模型最终回答
-                    response = st.write_stream(
-                        stream_rag_response(
-                            prompt, 
-                            st.session_state["vector_store"], 
-                            chat_history,
-                            selected_prompt_text 
-                        )
+                    st.write(f"✅ 找到了 {len(retrieved_docs)} 个高度相关的片段！")
+                    st.write("⚙️ 正在结合人设组织语言...")
+                    status.update(label="💡 思考完毕，开始回答！", state="complete", expanded=False)
+                
+                with st.expander("📚 查看 AI 参考的原文片段 (点击展开)"):
+                    for i, doc in enumerate(retrieved_docs):
+                        source_name = doc.metadata.get('source', '未知来源')
+                        short_name = os.path.basename(source_name)
+                        st.markdown(f"**片段 {i+1}** (来自 `{short_name}`):")
+                        st.info(f"{doc.page_content[:200]}...")
+                
+                response = st.write_stream(
+                    stream_rag_response(
+                        prompt, 
+                        st.session_state["vector_store"], 
+                        chat_history,
+                        selected_prompt_text 
                     )
-                # 记入历史
-                st.session_state.messages.append({"role": "assistant", "content": response})
+                )
+            
+            # 写入数据库：记录 AI 的最终回答
+            chat_db.add_ai_message(response)
 
-                # 🌟 【Day 20 核心修改】：如果开启了开关，马上开始录音并播放！
-                if enable_tts:
-                    with st.spinner("🎵 正在合成专属语音..."):
-                        audio_bytes = text_to_speech(response)
-                        if audio_bytes:
-                            # Streamlit 原生的音频播放器，极其好用
-                            st.audio(audio_bytes, format="audio/wav")
-            else:
-                st.error("请先等待知识库构建完成。")
+            if enable_tts:
+                with st.spinner("🎵 正在合成专属语音..."):
+                    audio_bytes = text_to_speech(response)
+                    if audio_bytes:
+                        st.audio(audio_bytes, format="audio/wav")
 
+# 如果系统里连 vector_store 都没有，显示提示语
 else:
     st.info("👈 请先在左侧上传一个文档开始体验。")
